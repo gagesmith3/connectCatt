@@ -8,6 +8,58 @@ PROJECT_ROOT="/opt/connectcatt"
 SCRIPT_SRC="./scripts/cast_dashboards.sh"
 CRON_SRC="./deploy/connectcatt.cron"
 LOGROTATE_SRC="./deploy/connectcatt.logrotate"
+GITHUB_RAW_BASE="${GITHUB_RAW_BASE:-}"
+TMP_DIR=""
+
+cleanup() {
+  if [ -n "$TMP_DIR" ] && [ -d "$TMP_DIR" ]; then
+    rm -rf "$TMP_DIR"
+  fi
+}
+
+trap cleanup EXIT
+
+fetch_from_github_if_missing() {
+  local local_path="$1"
+  local remote_suffix="$2"
+
+  if [ -f "$local_path" ]; then
+    return 0
+  fi
+
+  if [ -z "$GITHUB_RAW_BASE" ]; then
+    echo "Missing file: $local_path"
+    echo "Set GITHUB_RAW_BASE, for example:"
+    echo "  export GITHUB_RAW_BASE=https://raw.githubusercontent.com/<owner>/<repo>/<branch>"
+    exit 1
+  fi
+
+  if [ -z "$TMP_DIR" ]; then
+    TMP_DIR="$(mktemp -d)"
+  fi
+
+  local destination="$TMP_DIR/$(basename "$local_path")"
+  local remote_url="${GITHUB_RAW_BASE%/}/${remote_suffix}"
+
+  echo "Downloading $remote_url"
+  curl --fail --silent --show-error --location "$remote_url" -o "$destination"
+
+  case "$local_path" in
+    *cast_dashboards.sh)
+      SCRIPT_SRC="$destination"
+      ;;
+    *connectcatt.cron)
+      CRON_SRC="$destination"
+      ;;
+    *connectcatt.logrotate)
+      LOGROTATE_SRC="$destination"
+      ;;
+  esac
+}
+
+fetch_from_github_if_missing "$SCRIPT_SRC" "scripts/cast_dashboards.sh"
+fetch_from_github_if_missing "$CRON_SRC" "deploy/connectcatt.cron"
+fetch_from_github_if_missing "$LOGROTATE_SRC" "deploy/connectcatt.logrotate"
 
 echo "[1/8] Installing dependencies"
 sudo apt-get update

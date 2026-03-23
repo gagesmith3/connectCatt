@@ -26,6 +26,17 @@ chmod +x deploy/install_on_ubuntu.sh scripts/cast_dashboards.sh
 ./deploy/install_on_ubuntu.sh
 ```
 
+### Install directly from GitHub (no git clone required)
+
+Set your repository raw base and run the installer directly:
+
+```bash
+export GITHUB_RAW_BASE="https://raw.githubusercontent.com/<owner>/<repo>/<branch>"
+curl -fsSL "$GITHUB_RAW_BASE/deploy/install_on_ubuntu.sh" -o /tmp/install_on_ubuntu.sh
+chmod +x /tmp/install_on_ubuntu.sh
+/tmp/install_on_ubuntu.sh
+```
+
 3. Configure `catt` aliases as the service user:
 
 ```bash
