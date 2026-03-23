@@ -18,36 +18,17 @@ This project auto-casts two Apache dashboard pages to two TVs using the open-sou
 
 ## One-time setup on Ubuntu VM
 
-1. Copy this repository to the VM.
-2. From the repository root, run:
+Clone the repository and run the installer from the repo root:
 
 ```bash
-chmod +x deploy/install_on_ubuntu.sh scripts/cast_dashboards.sh
-./deploy/install_on_ubuntu.sh
+git clone https://github.com/gagesmith3/connectCatt.git
+cd connectCatt
+bash install.sh
 ```
 
-### Install directly from GitHub (no git clone required)
+The installer handles everything: dependencies, `catt`, service user, directories, cron, logrotate, and an initial `catt.cfg`.
 
-Set your repository raw base and run the installer directly:
-
-```bash
-export GITHUB_RAW_BASE="https://raw.githubusercontent.com/<owner>/<repo>/<branch>"
-curl -fsSL "$GITHUB_RAW_BASE/deploy/install_on_ubuntu.sh" -o /tmp/install_on_ubuntu.sh
-chmod +x /tmp/install_on_ubuntu.sh
-/tmp/install_on_ubuntu.sh
-```
-
-3. Configure `catt` aliases as the service user:
-
-```bash
-sudo -u connectcatt catt ls
-sudo -u connectcatt catt -d "Equipment" status
-sudo -u connectcatt catt -d "Secondary" status
-```
-
-If aliases are not already configured, create or edit `~connectcatt/.config/catt/catt.cfg` with device aliases.
-
-Example:
+After install, verify your device aliases in `/home/connectcatt/.config/catt/catt.cfg` match the output of `catt ls` (run `catt ls` to find exact device names), then update the file if needed:
 
 ```ini
 [aliases]
