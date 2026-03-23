@@ -4,6 +4,9 @@ set -u
 # ConnectCatt dashboard casting automation.
 # Casts different dashboard URLs to different Chromecast devices.
 
+# Use catt from the project venv
+export PATH="/opt/connectcatt/venv/bin:$PATH"
+
 LOG_DIR="/var/log/connectcatt"
 LOG_FILE="$LOG_DIR/cast.log"
 LOCK_FILE="/tmp/connectcatt-cast.lock"

@@ -8,10 +8,12 @@ REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 echo "[1/7] Installing system dependencies..."
 sudo apt-get update -q
-sudo apt-get install -y python3 python3-pip curl util-linux
+sudo apt-get install -y python3 python3-venv curl util-linux
 
-echo "[2/7] Installing catt..."
-sudo pip3 install --upgrade catt
+echo "[2/7] Installing catt into venv..."
+sudo python3 -m venv "$PROJECT_ROOT/venv"
+sudo "$PROJECT_ROOT/venv/bin/pip" install --upgrade pip --quiet
+sudo "$PROJECT_ROOT/venv/bin/pip" install catt --quiet
 
 echo "[3/7] Creating service user..."
 if ! id "$SERVICE_USER" &>/dev/null; then
@@ -23,7 +25,7 @@ fi
 echo "[4/7] Creating directories..."
 sudo mkdir -p "$PROJECT_ROOT/scripts" /var/log/connectcatt
 sudo chown -R "$SERVICE_USER:$SERVICE_USER" "$PROJECT_ROOT" /var/log/connectcatt
-sudo chmod 750 /var/log/connectcatt
+sudo chmod 750 "$PROJECT_ROOT/venv" /var/log/connectcatt
 
 echo "[5/7] Deploying cast script..."
 sudo cp "$REPO_DIR/scripts/cast_dashboards.sh" "$PROJECT_ROOT/scripts/cast_dashboards.sh"
