@@ -1,0 +1,6 @@
+# Copy to: /home/connectcatt/.config/catt/catt.cfg
+# Ensure device names match exactly what `catt ls` reports.
+
+[aliases]
+equipment = Equipment
+secondary = Secondary
