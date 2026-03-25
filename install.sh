@@ -27,10 +27,11 @@ if [[ ! -f "$ROOT_DIR/config/cast_jobs.json" ]]; then
   echo "Created config/cast_jobs.json from example"
 fi
 
-chmod +x "$ROOT_DIR/install.sh" "$ROOT_DIR/run.sh"
+chmod +x "$ROOT_DIR/install.sh" "$ROOT_DIR/run.sh" "$ROOT_DIR/run_force_cast.sh"
 
 echo "Install complete."
 echo "Next steps:"
 echo "1) Edit .env"
 echo "2) Edit config/cast_jobs.json"
 echo "3) Run ./run.sh"
+echo "4) Manual cast workflow: ./run_force_cast.sh"

@@ -204,6 +204,17 @@ def run_cast_site(job: CastJob) -> None:
     run_chromecast_cast_site(job)
 
 
+def run_chromecast_stop(device: str, timeout_seconds: int) -> None:
+    catt_path = require_command(
+        "catt",
+        "Install it in the active environment with 'pip install catt' or ensure it is on PATH.",
+    )
+    command = [catt_path, "-d", device, "stop"]
+    logging.info("Stopping Chromecast device [%s]", device)
+    completed = run_subprocess(command, timeout_seconds)
+    raise_for_failed_command(completed, "No output from catt stop")
+
+
 def should_run_now(current_dt: datetime, target_hhmm: str, last_run_date: str | None) -> bool:
     today = current_dt.strftime("%Y-%m-%d")
     now_hhmm = current_dt.strftime("%H:%M")
@@ -212,6 +223,10 @@ def should_run_now(current_dt: datetime, target_hhmm: str, last_run_date: str | 
 
 def get_state_key(job: CastJob) -> str:
     return f"{job.target_type}|{job.target_label()}|{job.url}|{job.time_hhmm}"
+
+
+def get_stop_state_key(device: str, stop_time_hhmm: str) -> str:
+    return f"stop|chromecast|{device}|{stop_time_hhmm}"
 
 
 def execute_job(job: CastJob) -> bool:
@@ -228,7 +243,27 @@ def execute_job(job: CastJob) -> bool:
     return False
 
 
-def process_jobs(jobs: list[CastJob], state_path: Path) -> None:
+def execute_stop(device: str, timeout_seconds: int, retries: int) -> bool:
+    for attempt in range(1, retries + 1):
+        try:
+            run_chromecast_stop(device, timeout_seconds)
+            return True
+        except subprocess.TimeoutExpired:
+            logging.error("Stop for [%s] timed out on attempt %s/%s", device, attempt, retries)
+        except Exception as exc:
+            logging.error("Stop for [%s] failed on attempt %s/%s: %s", device, attempt, retries, exc)
+        if attempt < retries:
+            time.sleep(2)
+    return False
+
+
+def process_jobs(
+    jobs: list[CastJob],
+    state_path: Path,
+    stop_time_hhmm: str | None,
+    stop_timeout_seconds: int,
+    stop_retries: int,
+) -> None:
     state = load_state(state_path)
     now = datetime.now()
     today = now.strftime("%Y-%m-%d")
@@ -241,26 +276,56 @@ def process_jobs(jobs: list[CastJob], state_path: Path) -> None:
             continue
         due_jobs.append(job)
 
-    if not due_jobs:
-        return
+    if due_jobs:
+        logging.info("Dispatching %s due job(s) in parallel", len(due_jobs))
+        with ThreadPoolExecutor(max_workers=len(due_jobs), thread_name_prefix="cast-job") as executor:
+            future_to_job = {executor.submit(execute_job, job): job for job in due_jobs}
+            for future in as_completed(future_to_job):
+                job = future_to_job[future]
+                state_key = get_state_key(job)
+                try:
+                    success = future.result()
+                except Exception as exc:
+                    success = False
+                    logging.error("Job [%s] crashed unexpectedly: %s", job.name, exc)
 
-    logging.info("Dispatching %s due job(s) in parallel", len(due_jobs))
-    with ThreadPoolExecutor(max_workers=len(due_jobs), thread_name_prefix="cast-job") as executor:
-        future_to_job = {executor.submit(execute_job, job): job for job in due_jobs}
-        for future in as_completed(future_to_job):
-            job = future_to_job[future]
-            state_key = get_state_key(job)
-            try:
-                success = future.result()
-            except Exception as exc:
-                success = False
-                logging.error("Job [%s] crashed unexpectedly: %s", job.name, exc)
+                if success:
+                    state[state_key] = today
+                    logging.info("Job [%s] completed for %s", job.name, today)
+                else:
+                    logging.error("Job [%s] did not complete today", job.name)
 
-            if success:
-                state[state_key] = today
-                logging.info("Job [%s] completed for %s", job.name, today)
-            else:
-                logging.error("Job [%s] did not complete today", job.name)
+    if stop_time_hhmm:
+        devices = sorted({job.device for job in jobs})
+        due_stop_devices: list[str] = []
+
+        for device in devices:
+            stop_state_key = get_stop_state_key(device, stop_time_hhmm)
+            last_stop_date = state.get(stop_state_key)
+            if should_run_now(now, stop_time_hhmm, last_stop_date):
+                due_stop_devices.append(device)
+
+        if due_stop_devices:
+            logging.info("Dispatching stop to %s Chromecast device(s)", len(due_stop_devices))
+            with ThreadPoolExecutor(max_workers=len(due_stop_devices), thread_name_prefix="stop-job") as executor:
+                future_to_device = {
+                    executor.submit(execute_stop, device, stop_timeout_seconds, stop_retries): device
+                    for device in due_stop_devices
+                }
+                for future in as_completed(future_to_device):
+                    device = future_to_device[future]
+                    stop_state_key = get_stop_state_key(device, stop_time_hhmm)
+                    try:
+                        success = future.result()
+                    except Exception as exc:
+                        success = False
+                        logging.error("Stop for [%s] crashed unexpectedly: %s", device, exc)
+
+                    if success:
+                        state[stop_state_key] = today
+                        logging.info("Stop completed for [%s] on %s", device, today)
+                    else:
+                        logging.error("Stop did not complete for [%s]", device)
 
     save_state(state_path, state)
 
@@ -276,6 +341,36 @@ def parse_interval_seconds() -> int:
     return value
 
 
+def parse_stop_time_hhmm() -> str | None:
+    raw = os.getenv("CAST_STOP_TIME", "17:15").strip()
+    if not raw:
+        return None
+    validate_hhmm(raw)
+    return raw
+
+
+def parse_stop_timeout_seconds() -> int:
+    raw = os.getenv("CAST_STOP_TIMEOUT_SECONDS", "20").strip()
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError("CAST_STOP_TIMEOUT_SECONDS must be an integer") from exc
+    if value < 5:
+        raise ValueError("CAST_STOP_TIMEOUT_SECONDS must be >= 5")
+    return value
+
+
+def parse_stop_retries() -> int:
+    raw = os.getenv("CAST_STOP_RETRIES", "2").strip()
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError("CAST_STOP_RETRIES must be an integer") from exc
+    if value < 1:
+        raise ValueError("CAST_STOP_RETRIES must be >= 1")
+    return value
+
+
 def main() -> int:
     load_dotenv()
     setup_logging()
@@ -283,6 +378,9 @@ def main() -> int:
     try:
         jobs = load_jobs()
         interval = parse_interval_seconds()
+        stop_time_hhmm = parse_stop_time_hhmm()
+        stop_timeout_seconds = parse_stop_timeout_seconds()
+        stop_retries = parse_stop_retries()
         state_path = get_state_path()
     except Exception as exc:
         logging.error("Configuration error: %s", exc)
@@ -291,6 +389,15 @@ def main() -> int:
     logging.info("Loaded %s cast job(s)", len(jobs))
     logging.info("State file: %s", state_path)
     logging.info("Checking every %s seconds", interval)
+    if stop_time_hhmm:
+        logging.info(
+            "Daily stop enabled at %s (timeout=%ss, retries=%s)",
+            stop_time_hhmm,
+            stop_timeout_seconds,
+            stop_retries,
+        )
+    else:
+        logging.info("Daily stop is disabled")
     for job in jobs:
         logging.info(
             "Configured job [%s]: type=%s target=%s schedule=%s",
@@ -301,7 +408,7 @@ def main() -> int:
         )
 
     while True:
-        process_jobs(jobs, state_path)
+        process_jobs(jobs, state_path, stop_time_hhmm, stop_timeout_seconds, stop_retries)
         time.sleep(interval)
 
 

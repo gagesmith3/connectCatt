@@ -7,6 +7,8 @@ A TV dashboard scheduler for Ubuntu/Linux focused on Chromecast devices via `cat
 - `launch_casts.py`: Scheduler runtime.
 - `install.sh`: One-time setup script (venv, dependencies, `.env`, sample jobs file).
 - `run.sh`: Starts the scheduler with the project virtual environment.
+- `manual_force_cast.py`: Interactive manual cast workflow.
+- `run_force_cast.sh`: Wrapper for manual scan -> select -> cast flow.
 - `.env.example`: Environment template copied to `.env` on install.
 - `config/cast_jobs.example.json`: Sample schedule copied to `config/cast_jobs.json` on install.
 
@@ -32,6 +34,10 @@ After install:
 Default `.env` values:
 
 - `CAST_CHECK_INTERVAL_SECONDS=20`
+- `CAST_STOP_TIME=17:15`
+- `CAST_STOP_TIMEOUT_SECONDS=20`
+- `CAST_STOP_RETRIES=2`
+- `CAST_MANUAL_SCAN_TIMEOUT_SECONDS=20`
 - `CAST_STATE_FILE=cast_scheduler_state.json`
 - `CAST_JOBS_FILE=config/cast_jobs.json`
 - `CAST_JOBS=` (optional inline JSON alternative)
@@ -64,6 +70,29 @@ Supported fields:
 - `time`: `HH:MM` 24-hour.
 - `timeout_seconds`: Optional, minimum `5`.
 - `retries`: Optional, minimum `1`.
+
+## Daily Auto-Stop
+
+The scheduler sends `catt stop` to each configured Chromecast once per day at `CAST_STOP_TIME`.
+
+- Default stop time is `17:15`.
+- Set `CAST_STOP_TIME=` (empty) to disable auto-stop.
+- `CAST_STOP_TIMEOUT_SECONDS` and `CAST_STOP_RETRIES` tune stop behavior.
+
+## Manual Force Cast (Scan -> Select -> Cast)
+
+Use the interactive workflow:
+
+```bash
+./run_force_cast.sh
+```
+
+It will:
+
+1. Scan Chromecast devices (`catt scan`)
+2. Let you select a device
+3. Let you select a configured job URL
+4. Force cast immediately
 
 ## Optional Systemd Service
 
