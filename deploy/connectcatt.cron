@@ -1,8 +1,0 @@
-# /etc/cron.d/connectcatt
-# Cast both dashboard pages Monday-Friday at 07:55.
-# Ensure this script path and user exist on the Ubuntu VM.
-
-SHELL=/bin/bash
-PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-
-55 7 * * 1-5 connectcatt /opt/connectcatt/scripts/cast_dashboards.sh >> /var/log/connectcatt/cron.log 2>&1

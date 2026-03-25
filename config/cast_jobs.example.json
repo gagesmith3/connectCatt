@@ -1,0 +1,23 @@
+[
+  {
+    "name": "Equipment Dashboard",
+    "target_type": "chromecast",
+    "device": "equipment-tv",
+    "url": "http://192.168.1.6:8080/EQUIP/equipment-tv.php",
+    "time": "07:55"
+  },
+  {
+    "name": "Heading Dashboard",
+    "target_type": "chromecast",
+    "device": "heading-tv",
+    "url": "http://192.168.1.6:8080/heading-tv.php",
+    "time": "07:55"
+  },
+  {
+    "name": "Office Dashboard",
+    "target_type": "chromecast",
+    "device": "office-tv",
+    "url": "http://192.168.1.6:8080/iwt-tv.php",
+    "time": "07:55"
+  }
+]
